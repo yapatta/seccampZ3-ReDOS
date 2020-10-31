@@ -1,0 +1,1 @@
+import { createNFA } from './nfa';
