@@ -1,3 +1,4 @@
+import { type } from 'os';
 import { Node, Parser } from 'rerejs';
 
 export type NFA = AutomatonNode;
@@ -5,137 +6,155 @@ export type NFA = AutomatonNode;
 export type Arrow = {
   char: string;
   to: AutomatonNode;
+  visited?: boolean;
 };
 
 export type AutomatonNode = {
   next: Array<Arrow>;
-  isEnd: boolean;
-};
-
-const recursivePush = (before: AutomatonNode, after: AutomatonNode): void => {
-  if (before.next.length > 0) {
-    for (let i = 0; i < before.next.length; i++) {
-      recursivePush(before.next[i].to, after);
-    }
-  } else {
-    before.next.push({ char: '', to: after } as Arrow);
-  }
+  ends: AutomatonNode[];
+  index?: number;
 };
 
 export const createNFA = (exp: string): NFA => {
   const parser = new Parser(exp);
   const pattern = parser.parse();
-  const endNode: AutomatonNode = { next: [], isEnd: true };
-  const nfa = createAutomatonNode(pattern.child, true, endNode);
+  const nfa = createAutomatonNode(pattern.child);
+
+  // 受理状態追加
+  const lastNode: AutomatonNode = { next: [], ends: [] };
+
+  nfa.ends.map((end) => {
+    end.next.push({ char: '', to: lastNode } as Arrow);
+  });
+
+  nfa.ends = [lastNode];
 
   return nfa;
 };
 
-const createAutomatonNode = (
-  node: Node,
-  isEnd: boolean,
-  endNode: AutomatonNode,
-): AutomatonNode => {
+const createAutomatonNode = (node: Node): AutomatonNode => {
   switch (node.type) {
     case 'Capture': {
-      return createAutomatonNode(node.child, isEnd, endNode);
+      return createAutomatonNode(node.child);
     }
     case 'Disjunction': {
-      const nextNodes = node.children.map((child, index) =>
-        createAutomatonNode(
-          child,
-          index === node.children.length - 1 ? isEnd : false,
-          endNode,
-        ),
+      const nextNodes = node.children.map((child) =>
+        createAutomatonNode(child),
       );
 
-      const nowNode: AutomatonNode = { next: [], isEnd: isEnd };
+      const prevNode: AutomatonNode = { next: [], ends: [] };
 
-      nextNodes.map((nn) => {
-        const arrow: Arrow = { char: '', to: nn };
-        nowNode.next.push(arrow);
+      nextNodes.map((nextNode) => {
+        prevNode.next.push({ char: '', to: nextNode } as Arrow);
+        prevNode.ends.push(...nextNode.ends);
       });
 
-      return nowNode;
+      return prevNode;
     }
     case 'Sequence': {
-      const seqNodes = node.children.map((child, index) =>
-        createAutomatonNode(
-          child,
-          index === node.children.length - 1 ? isEnd : false,
-          endNode,
-        ),
-      );
+      const seqNodes = node.children.map((child) => createAutomatonNode(child));
 
-      for (let i = 0; i < seqNodes.length - 1; i++) {
+      for (let i = seqNodes.length - 2; i >= 0; i--) {
         const before = seqNodes[i];
         const after = seqNodes[i + 1];
 
-        // need to push recursively
-        recursivePush(before, after);
+        before.ends.map((end) => {
+          end.next.push({ char: '', to: after } as Arrow);
+        });
+
+        before.ends = after.ends;
       }
 
       return seqNodes[0];
     }
     case 'Many': {
-      // FIXME: recursivePushでエラー(同じやつをpushすると永遠に食べてしまう)
-      const nextNode: AutomatonNode = isEnd
-        ? endNode
-        : { next: [], isEnd: false };
+      const nextNode: AutomatonNode = { next: [], ends: [] };
+      const repeatNode = createAutomatonNode(node.child);
 
-      const repeatNode = createAutomatonNode(node.child, false, endNode);
-      recursivePush(repeatNode, repeatNode);
-      recursivePush(repeatNode, nextNode);
-
-      const toRepeatNodeArrow: Arrow = {
+      const prevTorepeatArrow: Arrow = {
         char: '',
         to: repeatNode,
       };
-      const nowToNextarrow: Arrow = {
+
+      const prevToNextarrow: Arrow = {
         char: '',
         to: nextNode,
       };
 
-      const nowNode: AutomatonNode = {
-        next: [toRepeatNodeArrow, nowToNextarrow],
-        isEnd: false,
+      repeatNode.ends.map((node) => {
+        node.next.push({ char: '', to: repeatNode } as Arrow);
+        node.next.push({ char: '', to: nextNode } as Arrow);
+      });
+
+      const prevNode: AutomatonNode = {
+        next: [prevTorepeatArrow, prevToNextarrow],
+        ends: [nextNode],
       };
 
-      return nowNode;
+      return prevNode;
     }
     case 'Dot': {
-      const nextNode: AutomatonNode = isEnd
-        ? endNode
-        : { next: [], isEnd: false };
-      const arrow: Arrow = { char: '∑', to: nextNode };
-      const nowNode: AutomatonNode = { next: [arrow], isEnd: false };
+      const nextNode: AutomatonNode = { next: [], ends: [] };
+      nextNode.ends.push(nextNode);
+      const prevNode: AutomatonNode = {
+        next: [{ char: '∑', to: nextNode } as Arrow],
+        ends: [nextNode],
+      };
 
-      return nowNode;
+      return prevNode;
     }
     case 'Char': {
-      const nextNode: AutomatonNode = isEnd
-        ? endNode
-        : { next: [], isEnd: false };
-      const arrow: Arrow = { char: node.raw, to: nextNode };
-      const nowNode: AutomatonNode = { next: [arrow], isEnd: false };
+      const nextNode: AutomatonNode = { next: [], ends: [] };
+      nextNode.ends.push(nextNode);
+      const prevNode: AutomatonNode = {
+        next: [{ char: node.raw, to: nextNode } as Arrow],
+        ends: [nextNode],
+      };
 
-      return nowNode;
+      return prevNode;
     }
   }
 
   throw 'Cannnot Parse!!';
 };
 
+const giveIndexToNode = (nfa: NFA) => {
+  const queue = Array<AutomatonNode>();
+  let n = 0;
+  queue.push(nfa);
+
+  while (queue.length > 0) {
+    const node = queue.shift();
+
+    if (typeof node !== 'undefined') {
+      node.index = n++;
+      for (const arrow of node.next) {
+        if (typeof arrow.to.index === 'undefined') {
+          queue.push(arrow.to);
+        }
+      }
+    } else {
+      break;
+    }
+  }
+};
+
 const createVizStr = (nfa: NFA): string => {
-  let count = 0;
-  const getId = () => count++;
+  // 最初に点に対して数字を割り振る
+  giveIndexToNode(nfa);
 
   let ret = '';
   ret += `digraph G {\n`;
+  ret += `${nfa.ends[0].index} [shape=doublecircle];\n`;
 
-  const pid = getId();
+  const pid = nfa.index;
+
+  if (typeof pid === 'undefined') {
+    throw 'undefined pid';
+  }
+
   for (const arrow of nfa.next) {
-    ret += createDot(pid, arrow, getId);
+    ret += createDot(pid, arrow);
   }
 
   ret += `}\n`;
@@ -143,17 +162,26 @@ const createVizStr = (nfa: NFA): string => {
   return ret;
 };
 
-const createDot = (pid: number, arrow: Arrow, getId: () => number): string => {
+const createDot = (pid: number, arrow: Arrow): string => {
+  if (arrow.visited === true) {
+    return '';
+  }
+
+  arrow.visited = true;
   let ret = '';
 
-  const cid = getId();
+  const cid = arrow.to.index;
+
+  if (typeof cid === 'undefined') {
+    throw 'undefined pid';
+  }
 
   ret += `${pid} -> ${cid} [label = "${
     arrow.char === '' ? 'ε' : arrow.char
   }"];\n`;
 
   for (const nextArrow of arrow.to.next) {
-    ret += createDot(cid, nextArrow, getId);
+    ret += createDot(cid, nextArrow);
   }
 
   return ret;
@@ -161,8 +189,7 @@ const createDot = (pid: number, arrow: Arrow, getId: () => number): string => {
 
 // Test
 const main = () => {
-  const testCases = ['abc', 'a|b|c', 'a*'];
-  // const testCases = ['a*'];
+  const testCases = ['abc', 'a|b|c', 'a*', '(a|b)*', '((a|a)*)*'];
 
   for (const testCase of testCases) {
     const nfa = createNFA(testCase);
