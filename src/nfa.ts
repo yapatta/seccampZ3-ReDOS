@@ -1,4 +1,3 @@
-import { type } from 'os';
 import { Node, Parser } from 'rerejs';
 
 export type NFA = AutomatonNode;
@@ -10,7 +9,7 @@ export type Arrow = {
 };
 
 export type AutomatonNode = {
-  next: Array<Arrow>;
+  next: Arrow[];
   ends: AutomatonNode[];
   index?: number;
 };
