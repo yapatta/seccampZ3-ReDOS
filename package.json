@@ -5,7 +5,8 @@
 	"main": "index.js",
 	"scripts": {
 		"fmt": "prettier --write src/** && eslint --ext .js,.jsx,.ts,.tsx src/**/* --fix ",
-		"type-check": "tsc -p ."
+		"type-check": "tsc -p .",
+		"start": "npx tsc && node src/nfa.js"
 	},
 	"repository": {
 		"type": "git",
