@@ -8,9 +8,10 @@ Finite Automaton for SecurityCamp Z3
 - [x] Disjunction
 - [x] Sequence
 - [x] Capture (キャプチャグループ ex: `(abc)`)
-- [] NamedCapture (名前付きグループ ex: `(?<year>[0-9]{4})` )
-- [] Group (非キャプチャグループ ex: `(?:abc)`)
+- [x] NamedCapture (名前付きグループ ex: `(?<year>[0-9]{4})` )
+- [x] Group (非キャプチャグループ ex: `(?:abc)`)
 - [x] Many (0回以上の繰り返し)
+- [x] Optional
 - [] Some (1回以上の繰り返し)
 - [] Repeat (指定の文字数繰り返し ex `a{3}`)
 - [x] Char

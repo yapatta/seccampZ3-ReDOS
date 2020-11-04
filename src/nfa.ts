@@ -21,6 +21,7 @@ export const createNFA = (exp: string): NFA => {
 
   // 受理状態追加
   const lastNode: AutomatonNode = { next: [], ends: [] };
+  lastNode.ends.push(lastNode);
 
   nfa.ends.map((end) => {
     end.next.push({ char: '', to: lastNode } as Arrow);
@@ -28,12 +29,16 @@ export const createNFA = (exp: string): NFA => {
 
   nfa.ends = [lastNode];
 
+  giveIndexToNode(nfa);
+
   return nfa;
 };
 
 const createAutomatonNode = (node: Node): AutomatonNode => {
   switch (node.type) {
-    case 'Capture': {
+    case 'Capture':
+    case 'NamedCapture':
+    case 'Group': {
       return createAutomatonNode(node.child);
     }
     case 'Disjunction': {
@@ -58,7 +63,9 @@ const createAutomatonNode = (node: Node): AutomatonNode => {
         const after = seqNodes[i + 1];
 
         before.ends.map((end) => {
-          end.next.push({ char: '', to: after } as Arrow);
+          after.next.map((afterArrow) => {
+            end.next.push(afterArrow);
+          });
         });
 
         before.ends = after.ends;
@@ -70,7 +77,7 @@ const createAutomatonNode = (node: Node): AutomatonNode => {
       const nextNode: AutomatonNode = { next: [], ends: [] };
       const repeatNode = createAutomatonNode(node.child);
 
-      const prevTorepeatArrow: Arrow = {
+      const prevToRepeatArrow: Arrow = {
         char: '',
         to: repeatNode,
       };
@@ -86,7 +93,32 @@ const createAutomatonNode = (node: Node): AutomatonNode => {
       });
 
       const prevNode: AutomatonNode = {
-        next: [prevTorepeatArrow, prevToNextarrow],
+        next: [prevToRepeatArrow, prevToNextarrow],
+        ends: [nextNode],
+      };
+
+      return prevNode;
+    }
+    case 'Optional': {
+      const nextNode: AutomatonNode = { next: [], ends: [] };
+      const optionalNode = createAutomatonNode(node.child);
+
+      const prevToNextarrow: Arrow = {
+        char: '',
+        to: nextNode,
+      };
+
+      const prevToOptionalArrow: Arrow = {
+        char: '',
+        to: optionalNode,
+      };
+
+      optionalNode.ends.map((node) => {
+        node.next.push({ char: '', to: nextNode } as Arrow);
+      });
+
+      const prevNode: AutomatonNode = {
+        next: [prevToNextarrow, prevToOptionalArrow],
         ends: [nextNode],
       };
 
@@ -139,12 +171,12 @@ const giveIndexToNode = (nfa: NFA) => {
 };
 
 const createVizStr = (nfa: NFA): string => {
-  // 最初に点に対して数字を割り振る
-  giveIndexToNode(nfa);
-
   let ret = '';
   ret += `digraph G {\n`;
-  ret += `${nfa.ends[0].index} [shape=doublecircle];\n`;
+
+  nfa.ends.map((node) => {
+    ret += `${node.index} [shape=doublecircle];\n`;
+  });
 
   const pid = nfa.index;
 
@@ -188,9 +220,12 @@ const createDot = (pid: number, arrow: Arrow): string => {
 
 // Test
 const main = () => {
-  const testCases = ['abc', 'a|b|c', 'a*', '(a|b)*', '((a|a)*)*'];
+  // const testCases = ['abc', 'a|b|c', 'a*', '(a|b)*', '.*|(a|a)*'];
+  // const testCases = ['.*|(a|a)*'];
+  const testCases = ['a?b?'];
 
   for (const testCase of testCases) {
+    console.log(`// TestCase: \'${testCase}\'`);
     const nfa = createNFA(testCase);
     const viz = createVizStr(nfa);
     console.log(viz);

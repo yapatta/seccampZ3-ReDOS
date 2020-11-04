@@ -8,15 +8,19 @@ exports.createNFA = function (exp) {
     var nfa = createAutomatonNode(pattern.child);
     // 受理状態追加
     var lastNode = { next: [], ends: [] };
+    lastNode.ends.push(lastNode);
     nfa.ends.map(function (end) {
         end.next.push({ char: '', to: lastNode });
     });
     nfa.ends = [lastNode];
+    giveIndexToNode(nfa);
     return nfa;
 };
 var createAutomatonNode = function (node) {
     switch (node.type) {
-        case 'Capture': {
+        case 'Capture':
+        case 'NamedCapture':
+        case 'Group': {
             return createAutomatonNode(node.child);
         }
         case 'Disjunction': {
@@ -37,7 +41,9 @@ var createAutomatonNode = function (node) {
                 var before = seqNodes[i];
                 var after = seqNodes[i + 1];
                 before.ends.map(function (end) {
-                    end.next.push({ char: '', to: after });
+                    after.next.map(function (afterArrow) {
+                        end.next.push(afterArrow);
+                    });
                 });
                 before.ends = after.ends;
             };
@@ -49,7 +55,7 @@ var createAutomatonNode = function (node) {
         case 'Many': {
             var nextNode_1 = { next: [], ends: [] };
             var repeatNode_1 = createAutomatonNode(node.child);
-            var prevTorepeatArrow = {
+            var prevToRepeatArrow = {
                 char: '',
                 to: repeatNode_1,
             };
@@ -62,8 +68,28 @@ var createAutomatonNode = function (node) {
                 node.next.push({ char: '', to: nextNode_1 });
             });
             var prevNode = {
-                next: [prevTorepeatArrow, prevToNextarrow],
+                next: [prevToRepeatArrow, prevToNextarrow],
                 ends: [nextNode_1],
+            };
+            return prevNode;
+        }
+        case 'Optional': {
+            var nextNode_2 = { next: [], ends: [] };
+            var optionalNode = createAutomatonNode(node.child);
+            var prevToNextarrow = {
+                char: '',
+                to: nextNode_2,
+            };
+            var prevToOptionalArrow = {
+                char: '',
+                to: optionalNode,
+            };
+            optionalNode.ends.map(function (node) {
+                node.next.push({ char: '', to: nextNode_2 });
+            });
+            var prevNode = {
+                next: [prevToNextarrow, prevToOptionalArrow],
+                ends: [nextNode_2],
             };
             return prevNode;
         }
@@ -109,11 +135,11 @@ var giveIndexToNode = function (nfa) {
     }
 };
 var createVizStr = function (nfa) {
-    // 最初に点に対して数字を割り振る
-    giveIndexToNode(nfa);
     var ret = '';
     ret += "digraph G {\n";
-    ret += nfa.ends[0].index + " [shape=doublecircle];\n";
+    nfa.ends.map(function (node) {
+        ret += node.index + " [shape=doublecircle];\n";
+    });
     var pid = nfa.index;
     if (typeof pid === 'undefined') {
         throw 'undefined pid';
@@ -144,9 +170,12 @@ var createDot = function (pid, arrow) {
 };
 // Test
 var main = function () {
-    var testCases = ['abc', 'a|b|c', 'a*', '(a|b)*', '((a|a)*)*'];
+    // const testCases = ['abc', 'a|b|c', 'a*', '(a|b)*', '.*|(a|a)*'];
+    // const testCases = ['.*|(a|a)*'];
+    var testCases = ['a?b?'];
     for (var _i = 0, testCases_1 = testCases; _i < testCases_1.length; _i++) {
         var testCase = testCases_1[_i];
+        console.log("// TestCase: '" + testCase + "'");
         var nfa = exports.createNFA(testCase);
         var viz = createVizStr(nfa);
         console.log(viz);
