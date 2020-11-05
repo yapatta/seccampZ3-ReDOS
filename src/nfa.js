@@ -171,8 +171,8 @@ var createDot = function (pid, arrow) {
 // Test
 var main = function () {
     // const testCases = ['abc', 'a|b|c', 'a*', '(a|b)*', '.*|(a|a)*'];
-    // const testCases = ['.*|(a|a)*'];
-    var testCases = ['a?b?'];
+    var testCases = ['.*|(a|a)*'];
+    //const testCases = ['a?b?'];
     for (var _i = 0, testCases_1 = testCases; _i < testCases_1.length; _i++) {
         var testCase = testCases_1[_i];
         console.log("// TestCase: '" + testCase + "'");

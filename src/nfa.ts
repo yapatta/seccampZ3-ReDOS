@@ -221,8 +221,8 @@ const createDot = (pid: number, arrow: Arrow): string => {
 // Test
 const main = () => {
   // const testCases = ['abc', 'a|b|c', 'a*', '(a|b)*', '.*|(a|a)*'];
-  // const testCases = ['.*|(a|a)*'];
-  const testCases = ['a?b?'];
+  const testCases = ['.*|(a|a)*'];
+  //const testCases = ['a?b?'];
 
   for (const testCase of testCases) {
     console.log(`// TestCase: \'${testCase}\'`);

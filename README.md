@@ -19,5 +19,6 @@ Finite Automaton for SecurityCamp Z3
 
 ### To Detect ReDos
 
+- [] ε除去実装
 - [] To implement Strong Connected Components(強連結成分分解アルゴリズム実装)
 - [] To detect IDA/EDA
